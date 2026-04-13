@@ -2,17 +2,20 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
-import { formatCurrency, formatDateShort } from '@/lib/utils'
+import { formatCurrency, formatDateShort, getClientDisplayName } from '@/lib/utils'
 import { MICRO_THRESHOLDS, checkThresholdAlerts } from '@/lib/french-tax'
+import { generateFEC, downloadFEC } from '@/lib/fec-export'
 import { INVOICE_STATUS_INFO } from '@/lib/types'
 import type { Invoice } from '@/lib/types'
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { toast } from '@/components/common/Toast'
 import {
   TrendingUp,
   Clock,
   AlertTriangle,
   FileText,
   Plus,
+  FileDown,
   ArrowRight,
 } from 'lucide-react'
 
@@ -71,6 +74,35 @@ export function DashboardPage() {
 
   const alerts = checkThresholdAlerts(stats.servicesHT, stats.goodsHT)
 
+  const handleExportFEC = async () => {
+    if (!business) return
+    const year = new Date().getFullYear()
+    // Fetch all invoices with items for FEC
+    const { data: invoices } = await supabase
+      .from('invoices')
+      .select('*, client:clients(*), items:invoice_items(*)')
+      .eq('business_id', business.id)
+      .in('status', ['sent', 'paid'])
+      .gte('issue_date', `${year}-01-01`)
+      .lte('issue_date', `${year}-12-31`)
+      .order('issue_date')
+
+    if (!invoices || invoices.length === 0) {
+      toast('Aucune facture à exporter pour cette année.', 'warning')
+      return
+    }
+
+    const fecData = invoices.map((inv) => ({
+      ...inv,
+      items: inv.items ?? [],
+      clientName: inv.client ? getClientDisplayName(inv.client) : 'Client inconnu',
+    }))
+
+    const content = generateFEC(fecData, business.business_name)
+    downloadFEC(content, `FEC_${business.siret || business.business_name}_${year}.txt`)
+    toast('Export FEC téléchargé', 'success')
+  }
+
   const servicesPercent = Math.min((stats.servicesHT / MICRO_THRESHOLDS.services) * 100, 100)
   const goodsPercent = Math.min((stats.goodsHT / MICRO_THRESHOLDS.goods) * 100, 100)
 
@@ -93,13 +125,22 @@ export function DashboardPage() {
             Bonjour, bienvenue sur {business?.business_name}
           </p>
         </div>
-        <Link
-          to="/app/invoices/new"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
-        >
-          <Plus className="h-4 w-4" />
-          Nouvelle facture
-        </Link>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportFEC}
+            className="inline-flex items-center gap-2 rounded-lg border border-surface-300 px-4 py-2.5 text-sm font-medium text-surface-700 hover:bg-surface-50"
+          >
+            <FileDown className="h-4 w-4" />
+            Export FEC
+          </button>
+          <Link
+            to="/app/invoices/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
+          >
+            <Plus className="h-4 w-4" />
+            Nouvelle facture
+          </Link>
+        </div>
       </div>
 
       {/* Alerts */}

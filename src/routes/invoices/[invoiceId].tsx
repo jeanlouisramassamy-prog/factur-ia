@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatDate, getClientDisplayName } from '@/lib/utils'
 import { INVOICE_STATUS_INFO, PAYMENT_METHODS } from '@/lib/types'
 import { LEGAL_MENTIONS } from '@/lib/french-tax'
+import { generateInvoicePDF, downloadBlob } from '@/lib/invoice-pdf'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { toast } from '@/components/common/Toast'
 import type { Invoice, InvoiceItem } from '@/lib/types'
-import { ArrowLeft, Download, Send, CheckCircle, Shield } from 'lucide-react'
+import { ArrowLeft, Download, Send, CheckCircle, Shield, Loader2 } from 'lucide-react'
 
 export function InvoiceDetailPage() {
   const { invoiceId } = useParams()
+  const { business } = useAuthStore()
   const [invoice, setInvoice] = useState<Invoice | null>(null)
   const [items, setItems] = useState<InvoiceItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   useEffect(() => {
     if (invoiceId) loadInvoice()
@@ -65,6 +69,25 @@ export function InvoiceDetailPage() {
     }
   }
 
+  const handleDownloadPDF = async () => {
+    if (!invoice || !invoice.client || !business) return
+    setPdfLoading(true)
+    try {
+      const blob = await generateInvoicePDF({
+        invoice,
+        items,
+        business,
+        client: invoice.client,
+      })
+      downloadBlob(blob, `${invoice.invoice_number}.pdf`)
+      toast('PDF téléchargé', 'success')
+    } catch (err) {
+      console.error(err)
+      toast('Erreur lors de la génération du PDF', 'error')
+    }
+    setPdfLoading(false)
+  }
+
   if (loading) return <div className="text-center py-8 text-surface-500">Chargement...</div>
   if (!invoice) return <div className="text-center py-8 text-surface-500">Facture introuvable.</div>
 
@@ -113,8 +136,13 @@ export function InvoiceDetailPage() {
               <CheckCircle className="h-4 w-4" /> Marquer payée
             </button>
           )}
-          <button className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
-            <Download className="h-4 w-4" /> Télécharger PDF
+          <button
+            onClick={handleDownloadPDF}
+            disabled={pdfLoading}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+          >
+            {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {pdfLoading ? 'Génération...' : 'Télécharger PDF'}
           </button>
         </div>
       </div>

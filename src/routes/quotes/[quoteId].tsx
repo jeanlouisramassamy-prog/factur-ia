@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
+import { todayISO, addDays } from '@/lib/utils'
 import { formatCurrency, formatDate, getClientDisplayName } from '@/lib/utils'
 import { QUOTE_STATUS_INFO } from '@/lib/types'
 import { StatusBadge } from '@/components/common/StatusBadge'
@@ -10,7 +12,10 @@ import { ArrowLeft, FileText, CheckCircle, XCircle } from 'lucide-react'
 
 export function QuoteDetailPage() {
   const { quoteId } = useParams()
+  const navigate = useNavigate()
+  const { business } = useAuthStore()
   const [quote, setQuote] = useState<Quote | null>(null)
+  const [converting, setConverting] = useState(false)
   const [items, setItems] = useState<QuoteItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -32,8 +37,74 @@ export function QuoteDetailPage() {
   }
 
   const convertToInvoice = async () => {
-    toast('Conversion en facture — fonctionnalité à venir', 'info')
-    // In a full implementation: create invoice from quote items, link via converted_invoice_id
+    if (!quote || !business) return
+    setConverting(true)
+
+    // Generate invoice number
+    const prefix = business.invoice_prefix
+    const num = business.next_invoice_number
+    const year = new Date().getFullYear()
+    const invoiceNumber = `${prefix}-${year}-${String(num).padStart(4, '0')}`
+
+    // Create invoice from quote
+    const { data: invoice, error } = await supabase
+      .from('invoices')
+      .insert({
+        business_id: business.id,
+        client_id: quote.client_id,
+        invoice_number: invoiceNumber,
+        status: 'draft',
+        issue_date: todayISO(),
+        due_date: addDays(todayISO(), business.payment_terms_days),
+        subtotal_ht: quote.subtotal_ht,
+        total_tva: quote.total_tva,
+        total_ttc: quote.total_ttc,
+        notes: quote.notes,
+        payment_method: business.default_payment_method,
+      })
+      .select()
+      .single()
+
+    if (error || !invoice) {
+      toast(error?.message ?? 'Erreur lors de la conversion', 'error')
+      setConverting(false)
+      return
+    }
+
+    // Copy quote items to invoice items
+    const invoiceItems = items.map((qi, i) => ({
+      invoice_id: invoice.id,
+      product_id: qi.product_id,
+      description: qi.description,
+      quantity: qi.quantity,
+      unit: qi.unit,
+      unit_price_ht: qi.unit_price_ht,
+      tva_rate: qi.tva_rate,
+      category: qi.category,
+      activity_type: qi.activity_type,
+      pcg_account: qi.pcg_account,
+      octroi_de_mer: qi.octroi_de_mer,
+      octroi_de_mer_regional: qi.octroi_de_mer_regional,
+      sort_order: i,
+    }))
+
+    await supabase.from('invoice_items').insert(invoiceItems)
+
+    // Update quote status and link
+    await supabase
+      .from('quotes')
+      .update({ status: 'invoiced', converted_invoice_id: invoice.id })
+      .eq('id', quote.id)
+
+    // Increment invoice number
+    await supabase
+      .from('businesses')
+      .update({ next_invoice_number: num + 1 })
+      .eq('id', business.id)
+
+    setConverting(false)
+    toast(`Facture ${invoiceNumber} créée depuis le devis !`, 'success')
+    navigate(`/app/invoices/${invoice.id}`)
   }
 
   if (loading) return <div className="text-center py-8 text-surface-500">Chargement...</div>
@@ -66,8 +137,8 @@ export function QuoteDetailPage() {
             </>
           )}
           {quote.status === 'accepted' && !quote.converted_invoice_id && (
-            <button onClick={convertToInvoice} className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
-              <FileText className="h-4 w-4" /> Convertir en facture
+            <button onClick={convertToInvoice} disabled={converting} className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">
+              <FileText className="h-4 w-4" /> {converting ? 'Conversion...' : 'Convertir en facture'}
             </button>
           )}
           {quote.status === 'draft' && (
