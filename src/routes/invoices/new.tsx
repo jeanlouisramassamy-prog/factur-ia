@@ -16,6 +16,7 @@ import { LEGAL_MENTIONS, adaptTVAForTerritoire } from '@/lib/french-tax'
 import { generateFacturXMinimumXML } from '@/lib/facturx-xml'
 import { ITEM_UNITS, PAYMENT_METHODS } from '@/lib/types'
 import type { Client, Product, InvoiceItemDraft, ItemUnit, PaymentMethod } from '@/lib/types'
+import { AIDescriptionInput } from '@/components/invoice/AIDescriptionInput'
 import { Plus, Trash2, ArrowLeft, Save } from 'lucide-react'
 
 function emptyItem(isExempt: boolean, territoire: string = 'metropole'): InvoiceItemDraft {
@@ -245,6 +246,12 @@ export function InvoiceNewPage() {
               </div>
             </div>
           </div>
+
+          {/* AI Generation */}
+          <AIDescriptionInput
+            products={products}
+            onGenerate={(aiItems) => setItems((prev) => [...prev.filter((it) => it.description !== ''), ...aiItems])}
+          />
 
           {/* Line items */}
           <div className="bg-white rounded-xl border border-surface-200 p-5 space-y-4">

@@ -8,6 +8,7 @@ import { PRODUCT_CATEGORIES, getCategoryById } from '@/lib/product-categories'
 import { adaptTVAForTerritoire } from '@/lib/french-tax'
 import { ITEM_UNITS } from '@/lib/types'
 import type { Client, Product, QuoteItemDraft, ItemUnit } from '@/lib/types'
+import { AIDescriptionInput } from '@/components/invoice/AIDescriptionInput'
 import { Plus, Trash2, ArrowLeft, Save } from 'lucide-react'
 
 function emptyItem(isExempt: boolean, territoire: string = 'metropole'): QuoteItemDraft {
@@ -109,6 +110,10 @@ export function QuoteNewPage() {
               </div>
             </div>
           </div>
+          <AIDescriptionInput
+            products={products}
+            onGenerate={(aiItems) => setItems((prev) => [...prev.filter((it) => it.description !== ''), ...aiItems])}
+          />
           <div className="bg-white rounded-xl border border-surface-200 p-5 space-y-4">
             <h3 className="font-semibold text-surface-900">Lignes</h3>
             {items.map((item, index) => (
