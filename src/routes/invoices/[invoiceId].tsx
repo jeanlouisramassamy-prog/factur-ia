@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, getClientDisplayName } from '@/lib/utils'
 import { INVOICE_STATUS_INFO, PAYMENT_METHODS } from '@/lib/types'
 import { LEGAL_MENTIONS } from '@/lib/french-tax'
 import { generateInvoicePDF, downloadBlob } from '@/lib/invoice-pdf'
+import { generateFacturXMinimumXML } from '@/lib/facturx-xml'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { toast } from '@/components/common/Toast'
 import type { Invoice, InvoiceItem } from '@/lib/types'
@@ -56,17 +57,30 @@ export function InvoiceDetailPage() {
   }
 
   const markAsSent = async () => {
-    if (!invoice) return
+    if (!invoice || !business) return
+    // Generate Factur-X XML if not already done
+    let facturxUpdate = {}
+    if (!invoice.facturx_xml && invoice.client) {
+      const xml = generateFacturXMinimumXML({ invoice, items, business, client: invoice.client })
+      facturxUpdate = { facturx_xml: xml, einvoice_status: 'generated' }
+    }
     const { error } = await supabase
       .from('invoices')
-      .update({ status: 'sent', sent_at: new Date().toISOString() })
+      .update({ status: 'sent', sent_at: new Date().toISOString(), ...facturxUpdate })
       .eq('id', invoice.id)
     if (error) {
       toast(error.message, 'error')
     } else {
-      toast('Facture marquée comme envoyée', 'success')
+      toast('Facture envoyée — Factur-X généré', 'success')
       loadInvoice()
     }
+  }
+
+  const handleDownloadXML = () => {
+    if (!invoice?.facturx_xml) return
+    const blob = new Blob([invoice.facturx_xml], { type: 'application/xml' })
+    downloadBlob(blob, `${invoice.invoice_number}_facturx.xml`)
+    toast('XML Factur-X téléchargé', 'success')
   }
 
   const handleDownloadPDF = async () => {
@@ -134,6 +148,14 @@ export function InvoiceDetailPage() {
           {(invoice.status === 'sent' || invoice.status === 'overdue') && (
             <button onClick={markAsPaid} className="inline-flex items-center gap-2 rounded-lg bg-success-600 px-4 py-2 text-sm font-medium text-white hover:bg-success-700">
               <CheckCircle className="h-4 w-4" /> Marquer payée
+            </button>
+          )}
+          {invoice.facturx_xml && (
+            <button
+              onClick={handleDownloadXML}
+              className="inline-flex items-center gap-2 rounded-lg border border-primary-300 px-4 py-2 text-sm font-medium text-primary-700 hover:bg-primary-50"
+            >
+              <Shield className="h-4 w-4" /> Factur-X XML
             </button>
           )}
           <button

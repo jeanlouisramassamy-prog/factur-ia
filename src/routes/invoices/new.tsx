@@ -13,6 +13,7 @@ import {
 } from '@/lib/utils'
 import { PRODUCT_CATEGORIES, getCategoryById } from '@/lib/product-categories'
 import { LEGAL_MENTIONS, adaptTVAForTerritoire } from '@/lib/french-tax'
+import { generateFacturXMinimumXML } from '@/lib/facturx-xml'
 import { ITEM_UNITS, PAYMENT_METHODS } from '@/lib/types'
 import type { Client, Product, InvoiceItemDraft, ItemUnit, PaymentMethod } from '@/lib/types'
 import { Plus, Trash2, ArrowLeft, Save } from 'lucide-react'
@@ -169,6 +170,20 @@ export function InvoiceNewPage() {
       toast(itemsError.message, 'error')
       setSaving(false)
       return
+    }
+
+    // Generate Factur-X XML if not draft
+    if (!asDraft) {
+      const selectedClient = clients.find((c) => c.id === clientId)
+      if (selectedClient) {
+        const xml = generateFacturXMinimumXML({
+          invoice: { ...invoice, subtotal_ht: totals.subtotalHT, total_tva: totals.totalTVA, total_ttc: totals.totalTTC },
+          items: itemsToInsert.map((it, i) => ({ ...it, id: `tmp-${i}`, invoice_id: invoice.id, total_ht: it.quantity * it.unit_price_ht, total_ttc: it.quantity * it.unit_price_ht * (1 + it.tva_rate / 100), created_at: '' })),
+          business,
+          client: selectedClient,
+        })
+        await supabase.from('invoices').update({ facturx_xml: xml, einvoice_status: 'generated' }).eq('id', invoice.id)
+      }
     }
 
     // Update next number
