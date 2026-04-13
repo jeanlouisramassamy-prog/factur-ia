@@ -76,13 +76,6 @@ export function InvoiceDetailPage() {
     }
   }
 
-  const handleDownloadXML = () => {
-    if (!invoice?.facturx_xml) return
-    const blob = new Blob([invoice.facturx_xml], { type: 'application/xml' })
-    downloadBlob(blob, `${invoice.invoice_number}_facturx.xml`)
-    toast('XML Factur-X téléchargé', 'success')
-  }
-
   const handleDownloadPDF = async () => {
     if (!invoice || !invoice.client || !business) return
     setPdfLoading(true)
@@ -150,21 +143,13 @@ export function InvoiceDetailPage() {
               <CheckCircle className="h-4 w-4" /> Marquer payée
             </button>
           )}
-          {invoice.facturx_xml && (
-            <button
-              onClick={handleDownloadXML}
-              className="inline-flex items-center gap-2 rounded-lg border border-primary-300 px-4 py-2 text-sm font-medium text-primary-700 hover:bg-primary-50"
-            >
-              <Shield className="h-4 w-4" /> Factur-X XML
-            </button>
-          )}
           <button
             onClick={handleDownloadPDF}
             disabled={pdfLoading}
             className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
           >
-            {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {pdfLoading ? 'Génération...' : 'Télécharger PDF'}
+            {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Shield className="h-4 w-4" /><Download className="h-4 w-4" /></>}
+            {pdfLoading ? 'Génération...' : 'Télécharger Factur-X'}
           </button>
         </div>
       </div>

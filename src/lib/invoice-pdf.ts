@@ -4,9 +4,11 @@
 // ============================================================
 
 import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer'
+import { PDFDocument, AFRelationship } from 'pdf-lib'
 import { createElement } from 'react'
 import type { Invoice, InvoiceItem, Business, Client } from './types'
 import { LEGAL_MENTIONS, LATE_PENALTY_RATE } from './french-tax'
+import { generateFacturXMinimumXML } from './facturx-xml'
 
 const colors = {
   primary: '#4f46e5',
@@ -360,11 +362,39 @@ function InvoicePDFDocument({ invoice, items, business, client }: InvoicePDFData
 }
 
 export async function generateInvoicePDF(data: InvoicePDFData): Promise<Blob> {
+  // 1. Generate base PDF with @react-pdf/renderer
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const doc = createElement(InvoicePDFDocument as any, data)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const blob = await pdf(doc as any).toBlob()
-  return blob
+  const baseBlob = await pdf(doc as any).toBlob()
+
+  // 2. Generate Factur-X XML
+  const facturxXml = generateFacturXMinimumXML(data)
+
+  // 3. Embed XML into PDF as attachment (Factur-X = PDF + XML intégré)
+  const pdfBytes = await baseBlob.arrayBuffer()
+  const pdfDoc = await PDFDocument.load(pdfBytes)
+
+  // Set PDF metadata
+  pdfDoc.setTitle(`Facture ${data.invoice.invoice_number}`)
+  pdfDoc.setAuthor(data.business.business_name)
+  pdfDoc.setSubject(`Facture ${data.invoice.invoice_number} — ${data.business.business_name}`)
+  pdfDoc.setCreator('FacturIA')
+  pdfDoc.setProducer('FacturIA — Factur-X MINIMUM')
+
+  // Embed Factur-X XML as file attachment
+  const xmlBytes = new TextEncoder().encode(facturxXml)
+  await pdfDoc.attach(xmlBytes, 'factur-x.xml', {
+    mimeType: 'application/xml',
+    description: 'Factur-X XML (CII) — Profil MINIMUM — EN16931',
+    afRelationship: AFRelationship.Data,
+    creationDate: new Date(),
+    modificationDate: new Date(),
+  })
+
+  // Save modified PDF
+  const finalPdfBytes = await pdfDoc.save()
+  return new Blob([finalPdfBytes as unknown as BlobPart], { type: 'application/pdf' })
 }
 
 export function downloadBlob(blob: Blob, filename: string) {
