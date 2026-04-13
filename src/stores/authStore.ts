@@ -33,12 +33,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (initialized) return
     initialized = true
 
-    const { data: { session } } = await supabase.auth.getSession()
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
 
-    if (session?.user) {
-      set({ user: session.user })
-      await get().fetchProfile()
-      await get().fetchBusiness()
+      if (session?.user) {
+        set({ user: session.user })
+        await get().fetchProfile()
+        await get().fetchBusiness()
+      }
+    } catch (err) {
+      console.error('Auth init error:', err)
     }
 
     set({ loading: false, initialized: true })
@@ -46,14 +50,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!authListenerRegistered) {
       authListenerRegistered = true
       supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          set({ user: session.user })
-          await get().fetchProfile()
-          await get().fetchBusiness()
-        } else if (event === 'SIGNED_OUT') {
-          set({ user: null, profile: null, business: null })
-        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          set({ user: session.user })
+        try {
+          if (event === 'SIGNED_IN' && session?.user) {
+            set({ user: session.user })
+            await get().fetchProfile()
+            await get().fetchBusiness()
+          } else if (event === 'SIGNED_OUT') {
+            set({ user: null, profile: null, business: null })
+          } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+            set({ user: session.user })
+          }
+        } catch (err) {
+          console.error('Auth state change error:', err)
         }
       })
     }
@@ -110,7 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       .select('*')
       .eq('owner_id', user.id)
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (data) set({ business: data })
   },
