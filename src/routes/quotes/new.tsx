@@ -5,13 +5,15 @@ import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/common/Toast'
 import { formatCurrency, todayISO, calculateItemTotalHT, calculateItemTVA, getClientDisplayName } from '@/lib/utils'
 import { PRODUCT_CATEGORIES, getCategoryById } from '@/lib/product-categories'
+import { adaptTVAForTerritoire } from '@/lib/french-tax'
 import { ITEM_UNITS } from '@/lib/types'
 import type { Client, Product, QuoteItemDraft, ItemUnit } from '@/lib/types'
 import { Plus, Trash2, ArrowLeft, Save } from 'lucide-react'
 
-function emptyItem(isExempt: boolean): QuoteItemDraft {
-  const cat = getCategoryById(isExempt ? 'exempt_293b' : 'services_general')!
-  return { product_id: null, description: '', quantity: 1, unit: 'unité', unit_price_ht: 0, tva_rate: cat.tva_rate, category: cat.id, activity_type: cat.activity_type, pcg_account: cat.pcg_account }
+function emptyItem(isExempt: boolean, territoire: string = 'metropole'): QuoteItemDraft {
+  const cat = getCategoryById(isExempt ? 'exempt_293b' : 'prestation_generale')!
+  const tva = isExempt ? 0 : adaptTVAForTerritoire(cat.tva_rate, territoire as 'metropole' | 'dom')
+  return { product_id: null, description: '', quantity: 1, unit: 'unité', unit_price_ht: 0, tva_rate: tva, category: cat.id, activity_type: cat.activity_type, pcg_account: cat.pcg_account, octroi_de_mer: 0, octroi_de_mer_regional: 0 }
 }
 
 export function QuoteNewPage() {
@@ -21,12 +23,13 @@ export function QuoteNewPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [saving, setSaving] = useState(false)
   const isExempt = business?.is_vat_exempt ?? false
+  const territoire = business?.territoire ?? 'metropole'
 
   const [clientId, setClientId] = useState('')
   const [issueDate, setIssueDate] = useState(todayISO())
   const [validityDays, setValidityDays] = useState(30)
   const [notes] = useState('')
-  const [items, setItems] = useState<QuoteItemDraft[]>([emptyItem(isExempt)])
+  const [items, setItems] = useState<QuoteItemDraft[]>([emptyItem(isExempt, territoire)])
 
   useEffect(() => {
     if (!business) return
@@ -35,14 +38,14 @@ export function QuoteNewPage() {
   }, [business])
 
   const updateItem = (i: number, u: Partial<QuoteItemDraft>) => setItems((p) => p.map((it, idx) => idx === i ? { ...it, ...u } : it))
-  const addItem = () => setItems((p) => [...p, emptyItem(isExempt)])
+  const addItem = () => setItems((p) => [...p, emptyItem(isExempt, territoire)])
   const removeItem = (i: number) => setItems((p) => p.filter((_, idx) => idx !== i))
 
   const selectProduct = (i: number, pid: string) => {
     const p = products.find((x) => x.id === pid)
     if (!p) return
     const cat = getCategoryById(p.category)
-    updateItem(i, { product_id: p.id, description: p.name, unit_price_ht: p.default_price_ht ?? 0, unit: p.unit, tva_rate: isExempt ? 0 : p.default_tva_rate, category: p.category, activity_type: cat?.activity_type ?? 'service', pcg_account: cat?.pcg_account ?? null })
+    updateItem(i, { product_id: p.id, description: p.name, unit_price_ht: p.default_price_ht ?? 0, unit: p.unit, tva_rate: isExempt ? 0 : adaptTVAForTerritoire(p.default_tva_rate, territoire), category: p.category, activity_type: cat?.activity_type ?? 'service', pcg_account: cat?.pcg_account ?? null })
   }
 
   const totals = useMemo(() => {
@@ -68,7 +71,7 @@ export function QuoteNewPage() {
 
     await supabase.from('quote_items').insert(items.map((it, i) => ({
       quote_id: quote.id, product_id: it.product_id, description: it.description, quantity: it.quantity, unit: it.unit,
-      unit_price_ht: it.unit_price_ht, tva_rate: it.tva_rate, category: it.category, activity_type: it.activity_type, pcg_account: it.pcg_account, sort_order: i,
+      unit_price_ht: it.unit_price_ht, tva_rate: it.tva_rate, category: it.category, activity_type: it.activity_type, pcg_account: it.pcg_account, octroi_de_mer: it.octroi_de_mer, octroi_de_mer_regional: it.octroi_de_mer_regional, sort_order: i,
     })))
 
     await supabase.from('businesses').update({ next_quote_number: num + 1 }).eq('id', business.id)
@@ -123,7 +126,7 @@ export function QuoteNewPage() {
                     {ITEM_UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                   <input type="number" step="0.01" min="0" value={item.unit_price_ht} onChange={(e) => updateItem(index, { unit_price_ht: Number(e.target.value) })} className="rounded border border-surface-200 px-3 py-1.5 text-sm outline-none" />
-                  <select value={item.category} onChange={(e) => { const c = getCategoryById(e.target.value); if (c) updateItem(index, { category: c.id, tva_rate: isExempt ? 0 : c.tva_rate, activity_type: c.activity_type, pcg_account: c.pcg_account }) }} className="rounded border border-surface-200 px-2 py-1.5 text-sm outline-none">
+                  <select value={item.category} onChange={(e) => { const c = getCategoryById(e.target.value); if (c) updateItem(index, { category: c.id, tva_rate: isExempt ? 0 : adaptTVAForTerritoire(c.tva_rate, territoire), activity_type: c.activity_type, pcg_account: c.pcg_account }) }} className="rounded border border-surface-200 px-2 py-1.5 text-sm outline-none">
                     {availableCategories.map((c) => <option key={c.id} value={c.id}>{c.tva_rate}%</option>)}
                   </select>
                   <div className="flex items-center gap-1">

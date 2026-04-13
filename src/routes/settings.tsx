@@ -3,9 +3,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/common/Toast'
 import { LEGAL_FORM_LABELS } from '@/lib/types'
-import type { PaymentMethod } from '@/lib/types'
+import type { PaymentMethod, Territoire } from '@/lib/types'
 import { PAYMENT_METHODS } from '@/lib/types'
-import { Building2, CreditCard, FileText, Shield, Save } from 'lucide-react'
+import { Building2, CreditCard, FileText, Shield, Save, Globe, GraduationCap } from 'lucide-react'
 
 export function SettingsPage() {
   const { business, setBusiness } = useAuthStore()
@@ -27,9 +27,13 @@ export function SettingsPage() {
     quote_prefix: business?.quote_prefix ?? 'DE',
     payment_terms_days: business?.payment_terms_days ?? 30,
     default_payment_method: (business?.default_payment_method ?? 'virement') as PaymentMethod,
+    territoire: (business?.territoire ?? 'metropole') as Territoire,
+    assujetti_octroi_de_mer: business?.assujetti_octroi_de_mer ?? false,
+    acre_dom_annee: business?.acre_dom_annee ?? null,
+    exoneration_tva_formation: business?.exoneration_tva_formation ?? false,
   })
 
-  const update = (field: string, value: string | number) => setForm((p) => ({ ...p, [field]: value }))
+  const update = (field: string, value: string | number | boolean | null) => setForm((p) => ({ ...p, [field]: value }))
 
   const handleSave = async () => {
     if (!business) return
@@ -156,6 +160,79 @@ export function SettingsPage() {
             </select>
           </div>
         </div>
+      </div>
+
+      {/* Territoire & DOM */}
+      <div className="bg-white rounded-xl border border-surface-200 p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Globe className="h-5 w-5 text-primary-600" />
+          <h2 className="text-lg font-semibold">Territoire & DOM</h2>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-surface-700 mb-1">Territoire</label>
+          <select value={form.territoire} onChange={(e) => update('territoire', e.target.value)} className="w-full rounded-lg border border-surface-300 px-4 py-2 text-sm outline-none">
+            <option value="metropole">France métropolitaine</option>
+            <option value="dom">DOM (La Réunion, Guadeloupe, Martinique...)</option>
+          </select>
+        </div>
+        {form.territoire === 'dom' && (
+          <>
+            <div className="bg-amber-50 rounded-lg px-4 py-3 text-sm text-amber-700">
+              TVA DOM : taux normal 8,5 % — taux réduit 2,1 %
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="octroi"
+                checked={form.assujetti_octroi_de_mer}
+                onChange={(e) => update('assujetti_octroi_de_mer', e.target.checked)}
+                className="h-4 w-4 rounded border-surface-300 text-primary-600"
+              />
+              <label htmlFor="octroi" className="text-sm text-surface-700">
+                Assujetti à l'Octroi de Mer (CA &ge; 300 000 €)
+              </label>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1">ACRE DOM — Année en cours</label>
+              <select
+                value={form.acre_dom_annee ?? ''}
+                onChange={(e) => update('acre_dom_annee', e.target.value ? Number(e.target.value) : null)}
+                className="w-full rounded-lg border border-surface-300 px-4 py-2 text-sm outline-none"
+              >
+                <option value="">Non applicable</option>
+                <option value="1">Année 1 — Exonération totale</option>
+                <option value="2">Année 2 — Exonération 75 %</option>
+                <option value="3">Année 3 — Exonération 50 %</option>
+              </select>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Formations */}
+      <div className="bg-white rounded-xl border border-surface-200 p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <GraduationCap className="h-5 w-5 text-primary-600" />
+          <h2 className="text-lg font-semibold">Formations</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="formation_exo"
+            checked={form.exoneration_tva_formation}
+            onChange={(e) => update('exoneration_tva_formation', e.target.checked)}
+            className="h-4 w-4 rounded border-surface-300 text-primary-600"
+          />
+          <label htmlFor="formation_exo" className="text-sm text-surface-700">
+            Organisme de formation déclaré auprès de la DREETS
+          </label>
+        </div>
+        {form.exoneration_tva_formation && (
+          <div className="bg-primary-50 rounded-lg px-4 py-3 text-sm text-primary-700">
+            Vos formations seront exonérées de TVA (art. 261-4-4° du CGI).
+            La mention sera ajoutée automatiquement sur les factures.
+          </div>
+        )}
       </div>
 
       {/* E-invoicing */}

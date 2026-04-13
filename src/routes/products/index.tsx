@@ -3,10 +3,10 @@ import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/common/Toast'
 import { formatCurrency } from '@/lib/utils'
-import { PRODUCT_CATEGORIES, getCategoryById } from '@/lib/product-categories'
+import { PRODUCT_CATEGORIES, getCategoryById, ACTIVITY_BADGES } from '@/lib/product-categories'
 import type { Product, ItemUnit } from '@/lib/types'
 import { ITEM_UNITS } from '@/lib/types'
-import { Package, Plus, Tag, X } from 'lucide-react'
+import { Package, Plus, Tag, X, Archive, GraduationCap } from 'lucide-react'
 
 export function ProductsPage() {
   const { business } = useAuthStore()
@@ -20,7 +20,7 @@ export function ProductsPage() {
   const [form, setForm] = useState({
     name: '',
     description: '',
-    category: isExempt ? 'exempt_293b' : 'services_general',
+    category: isExempt ? 'exempt_293b' : 'prestation_generale',
     unit: 'unité' as ItemUnit,
     default_price_ht: '',
   })
@@ -47,6 +47,7 @@ export function ProductsPage() {
     if (!business || !selectedCategory) return
     setSaving(true)
 
+    const isFormation = selectedCategory.activity_type === 'formation'
     const { error } = await supabase.from('products').insert({
       business_id: business.id,
       name: form.name,
@@ -55,6 +56,8 @@ export function ProductsPage() {
       unit: form.unit,
       default_price_ht: form.default_price_ht ? Number(form.default_price_ht) : null,
       default_tva_rate: isExempt ? 0 : selectedCategory.tva_rate,
+      est_formation: isFormation,
+      gestion_stock: selectedCategory.gestion_stock,
     })
 
     setSaving(false)
@@ -63,7 +66,7 @@ export function ProductsPage() {
     } else {
       toast('Produit créé', 'success')
       setShowForm(false)
-      setForm({ name: '', description: '', category: isExempt ? 'exempt_293b' : 'services_general', unit: 'unité', default_price_ht: '' })
+      setForm({ name: '', description: '', category: isExempt ? 'exempt_293b' : 'prestation_generale', unit: 'unité', default_price_ht: '' })
       loadProducts()
     }
   }
@@ -188,10 +191,28 @@ export function ProductsPage() {
           <div className="divide-y divide-surface-100">
             {products.map((p) => {
               const cat = getCategoryById(p.category)
+              const badge = cat ? ACTIVITY_BADGES[cat.activity_type] : null
               return (
                 <div key={p.id} className="flex items-center justify-between px-5 py-4">
                   <div>
-                    <p className="text-sm font-medium text-surface-900">{p.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-surface-900">{p.name}</p>
+                      {badge && (
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badge.color}`}>
+                          {badge.label}
+                        </span>
+                      )}
+                      {p.gestion_stock && (
+                        <span className="inline-flex items-center gap-1 text-xs text-surface-400">
+                          <Archive className="h-3 w-3" /> Stock
+                        </span>
+                      )}
+                      {p.est_formation && (
+                        <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+                          <GraduationCap className="h-3 w-3" />
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-3 mt-1">
                       <span className="flex items-center gap-1 text-xs text-surface-500">
                         <Tag className="h-3 w-3" /> {cat?.label ?? p.category}

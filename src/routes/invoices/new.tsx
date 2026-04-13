@@ -12,24 +12,27 @@ import {
   getClientDisplayName,
 } from '@/lib/utils'
 import { PRODUCT_CATEGORIES, getCategoryById } from '@/lib/product-categories'
-import { LEGAL_MENTIONS } from '@/lib/french-tax'
+import { LEGAL_MENTIONS, adaptTVAForTerritoire } from '@/lib/french-tax'
 import { ITEM_UNITS, PAYMENT_METHODS } from '@/lib/types'
 import type { Client, Product, InvoiceItemDraft, ItemUnit, PaymentMethod } from '@/lib/types'
 import { Plus, Trash2, ArrowLeft, Save } from 'lucide-react'
 
-function emptyItem(isExempt: boolean): InvoiceItemDraft {
-  const cat = isExempt ? 'exempt_293b' : 'services_general'
+function emptyItem(isExempt: boolean, territoire: string = 'metropole'): InvoiceItemDraft {
+  const cat = isExempt ? 'exempt_293b' : 'prestation_generale'
   const category = getCategoryById(cat)!
+  const tva = isExempt ? 0 : adaptTVAForTerritoire(category.tva_rate, territoire as 'metropole' | 'dom')
   return {
     product_id: null,
     description: '',
     quantity: 1,
     unit: 'unité',
     unit_price_ht: 0,
-    tva_rate: category.tva_rate,
+    tva_rate: tva,
     category: cat,
     activity_type: category.activity_type,
     pcg_account: category.pcg_account,
+    octroi_de_mer: 0,
+    octroi_de_mer_regional: 0,
   }
 }
 
@@ -41,13 +44,14 @@ export function InvoiceNewPage() {
   const [saving, setSaving] = useState(false)
 
   const isExempt = business?.is_vat_exempt ?? false
+  const territoire = business?.territoire ?? 'metropole'
 
   const [clientId, setClientId] = useState('')
   const [issueDate, setIssueDate] = useState(todayISO())
   const [dueDate, setDueDate] = useState(addDays(todayISO(), business?.payment_terms_days ?? 30))
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(business?.default_payment_method ?? 'virement')
   const [notes, setNotes] = useState('')
-  const [items, setItems] = useState<InvoiceItemDraft[]>([emptyItem(isExempt)])
+  const [items, setItems] = useState<InvoiceItemDraft[]>([emptyItem(isExempt, territoire)])
 
   useEffect(() => {
     if (business) {
@@ -70,19 +74,20 @@ export function InvoiceNewPage() {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...updates } : item)))
   }
 
-  const addItem = () => setItems((prev) => [...prev, emptyItem(isExempt)])
+  const addItem = () => setItems((prev) => [...prev, emptyItem(isExempt, territoire)])
   const removeItem = (index: number) => setItems((prev) => prev.filter((_, i) => i !== index))
 
   const selectProduct = (index: number, productId: string) => {
     const product = products.find((p) => p.id === productId)
     if (!product) return
     const cat = getCategoryById(product.category)
+    const tvaRate = isExempt ? 0 : adaptTVAForTerritoire(product.default_tva_rate, territoire)
     updateItem(index, {
       product_id: product.id,
       description: product.name + (product.description ? ` — ${product.description}` : ''),
       unit_price_ht: product.default_price_ht ?? 0,
       unit: product.unit,
-      tva_rate: isExempt ? 0 : product.default_tva_rate,
+      tva_rate: tvaRate,
       category: product.category,
       activity_type: cat?.activity_type ?? 'service',
       pcg_account: cat?.pcg_account ?? null,
@@ -154,6 +159,8 @@ export function InvoiceNewPage() {
       category: item.category,
       activity_type: item.activity_type,
       pcg_account: item.pcg_account,
+      octroi_de_mer: item.octroi_de_mer,
+      octroi_de_mer_regional: item.octroi_de_mer_regional,
       sort_order: i,
     }))
 
@@ -273,7 +280,7 @@ export function InvoiceNewPage() {
                       value={item.category}
                       onChange={(e) => {
                         const cat = getCategoryById(e.target.value)
-                        if (cat) updateItem(index, { category: cat.id, tva_rate: isExempt ? 0 : cat.tva_rate, activity_type: cat.activity_type, pcg_account: cat.pcg_account })
+                        if (cat) updateItem(index, { category: cat.id, tva_rate: isExempt ? 0 : adaptTVAForTerritoire(cat.tva_rate, territoire), activity_type: cat.activity_type, pcg_account: cat.pcg_account })
                       }}
                       className="w-full rounded border border-surface-200 px-2 py-1.5 text-sm outline-none"
                     >
@@ -334,6 +341,18 @@ export function InvoiceNewPage() {
             {isExempt && (
               <p className="mt-4 text-xs text-primary-600 italic">
                 {LEGAL_MENTIONS.vat_exempt}
+              </p>
+            )}
+
+            {items.some((it) => it.activity_type === 'formation' && it.tva_rate === 0) && (
+              <p className="mt-2 text-xs text-amber-600 italic">
+                {LEGAL_MENTIONS.formation_exempt}
+              </p>
+            )}
+
+            {territoire === 'dom' && (
+              <p className="mt-2 text-xs text-amber-600">
+                Taux TVA DOM appliqués.
               </p>
             )}
 

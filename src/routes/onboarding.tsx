@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/common/Toast'
 import { LEGAL_FORM_LABELS } from '@/lib/types'
-import type { LegalForm } from '@/lib/types'
+import type { LegalForm, Territoire } from '@/lib/types'
 import { Zap, Building2, MapPin, CreditCard } from 'lucide-react'
 
 export function OnboardingPage() {
@@ -16,6 +16,7 @@ export function OnboardingPage() {
   const [form, setForm] = useState({
     business_name: '',
     legal_form: 'auto_entrepreneur' as LegalForm,
+    territoire: 'metropole' as Territoire,
     siret: '',
     address_line1: '',
     postal_code: '',
@@ -27,10 +28,9 @@ export function OnboardingPage() {
   })
 
   // If already has business, redirect
-  if (business) {
-    navigate('/app', { replace: true })
-    return null
-  }
+  useEffect(() => {
+    if (business) navigate('/app', { replace: true })
+  }, [business, navigate])
 
   const updateField = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -48,6 +48,7 @@ export function OnboardingPage() {
         owner_id: user.id,
         business_name: form.business_name,
         legal_form: form.legal_form,
+        territoire: form.territoire,
         siret: form.siret || null,
         is_vat_exempt: isVatExempt,
         address_line1: form.address_line1 || null,
@@ -146,6 +147,24 @@ export function OnboardingPage() {
                   placeholder="123 456 789 00012"
                   maxLength={14}
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-surface-700 mb-1.5">
+                  Territoire
+                </label>
+                <select
+                  value={form.territoire}
+                  onChange={(e) => updateField('territoire', e.target.value)}
+                  className="w-full rounded-lg border border-surface-300 px-4 py-2.5 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none"
+                >
+                  <option value="metropole">France métropolitaine</option>
+                  <option value="dom">DOM (La Réunion, Guadeloupe, Martinique...)</option>
+                </select>
+                {form.territoire === 'dom' && (
+                  <p className="mt-1.5 text-xs text-primary-600">
+                    Les taux de TVA DOM s'appliqueront automatiquement (8,5 % / 2,1 %).
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setStep(2)}

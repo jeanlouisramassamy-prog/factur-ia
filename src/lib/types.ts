@@ -25,13 +25,15 @@ export type EInvoiceStatus = 'none' | 'generated' | 'sent_ppf' | 'accepted' | 'r
 
 export type FacturXProfile = 'MINIMUM' | 'BASIC' | 'EN16931'
 
-export type ActivityType = 'service' | 'goods' | 'export' | 'exempt'
+export type ActivityType = 'service' | 'goods' | 'produit_fini' | 'formation' | 'export' | 'exempt'
+
+export type Territoire = 'metropole' | 'dom'
 
 export type Plan = 'free' | 'solo' | 'pro'
 
 export type PaymentMethod = 'virement' | 'cheque' | 'especes' | 'carte' | 'prelevement' | 'autre'
 
-export type ItemUnit = 'unité' | 'heure' | 'jour' | 'forfait' | 'm²' | 'kg' | 'lot'
+export type ItemUnit = 'unité' | 'heure' | 'jour' | 'forfait' | 'm²' | 'kg' | 'lot' | 'session' | 'pièce'
 
 // --- Core Models ---
 
@@ -70,6 +72,10 @@ export interface Business {
   next_invoice_number: number
   next_quote_number: number
   fiscal_year_start: number
+  territoire: Territoire
+  assujetti_octroi_de_mer: boolean
+  acre_dom_annee: number | null
+  exoneration_tva_formation: boolean
   plan: Plan
   plan_expires_at: string | null
   created_at: string
@@ -104,6 +110,12 @@ export interface Product {
   default_price_ht: number | null
   default_tva_rate: number
   is_active: boolean
+  est_formation: boolean
+  duree_heures: number | null
+  gestion_stock: boolean
+  code_nce: string | null
+  taux_octroi_de_mer: number | null
+  taux_octroi_de_mer_regional: number | null
   created_at: string
 }
 
@@ -147,6 +159,8 @@ export interface InvoiceItem {
   category: string
   activity_type: ActivityType
   pcg_account: string | null
+  octroi_de_mer: number
+  octroi_de_mer_regional: number
   total_ht: number
   total_ttc: number
   sort_order: number
@@ -184,6 +198,8 @@ export interface QuoteItem {
   category: string
   activity_type: ActivityType
   pcg_account: string | null
+  octroi_de_mer: number
+  octroi_de_mer_regional: number
   total_ht: number
   total_ttc: number
   sort_order: number
@@ -198,6 +214,8 @@ export interface RevenueStats {
   total_ht: number
   services_ht: number
   goods_ht: number
+  produits_finis_ht: number
+  formations_ht: number
   total_ttc: number
   invoices_count: number
   paid_count: number
@@ -232,6 +250,8 @@ export interface InvoiceItemDraft {
   category: string
   activity_type: ActivityType
   pcg_account: string | null
+  octroi_de_mer: number
+  octroi_de_mer_regional: number
 }
 
 export interface InvoiceDraft {
@@ -255,6 +275,8 @@ export interface QuoteItemDraft {
   category: string
   activity_type: ActivityType
   pcg_account: string | null
+  octroi_de_mer: number
+  octroi_de_mer_regional: number
 }
 
 export interface QuoteDraft {
@@ -302,6 +324,8 @@ export const ITEM_UNITS: { value: ItemUnit; label: string }[] = [
   { value: 'm²', label: 'm²' },
   { value: 'kg', label: 'kg' },
   { value: 'lot', label: 'Lot' },
+  { value: 'session', label: 'Session' },
+  { value: 'pièce', label: 'Pièce' },
 ]
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
