@@ -22,6 +22,10 @@ import { QuoteDetailPage } from '@/routes/quotes/[quoteId]'
 import { ClientsListPage } from '@/routes/clients/index'
 import { ClientDetailPage } from '@/routes/clients/[clientId]'
 import { ProductsPage } from '@/routes/products/index'
+import { ExpensesListPage } from '@/routes/expenses/index'
+import { ExpenseNewPage } from '@/routes/expenses/new'
+import { ExpenseDetailPage } from '@/routes/expenses/[expenseId]'
+import { SuppliersPage } from '@/routes/suppliers/index'
 import { SettingsPage } from '@/routes/settings'
 import { LandingPage } from '@/routes/landing'
 
@@ -97,6 +101,10 @@ export default function App() {
             <Route path="quotes/:quoteId" element={<QuoteDetailPage />} />
             <Route path="clients" element={<ClientsListPage />} />
             <Route path="clients/:clientId" element={<ClientDetailPage />} />
+            <Route path="expenses" element={<ExpensesListPage />} />
+            <Route path="expenses/new" element={<ExpenseNewPage />} />
+            <Route path="expenses/:expenseId" element={<ExpenseDetailPage />} />
+            <Route path="suppliers" element={<SuppliersPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

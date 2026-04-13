@@ -1,18 +1,32 @@
 // ============================================================
-// Factur-X XML Generator — Profil MINIMUM (EN16931 / CII)
-// Generates Cross Industry Invoice XML for embedding in PDF/A-3
+// Factur-X XML Generator — Profil BASIC (EN16931 / CII)
+// Generates Cross Industry Invoice XML with line items
+// for embedding in PDF/A-3
 // ============================================================
 
 import type { Invoice, InvoiceItem, Business, Client } from './types'
 
-interface FacturXData {
+export interface FacturXData {
   invoice: Invoice
   items: InvoiceItem[]
   business: Business
   client: Client
 }
 
-export function generateFacturXMinimumXML(data: FacturXData): string {
+// UN/ECE Rec 20 unit codes
+const UNIT_CODES: Record<string, string> = {
+  'unité': 'C62',
+  'heure': 'HUR',
+  'jour': 'DAY',
+  'forfait': 'LS',
+  'm²': 'MTK',
+  'kg': 'KGM',
+  'lot': 'C62',
+  'session': 'C62',
+  'pièce': 'C62',
+}
+
+export function generateFacturXBasicXML(data: FacturXData): string {
   const { invoice, items, business, client } = data
   const issueDate = invoice.issue_date.replace(/-/g, '')
   const dueDate = invoice.due_date?.replace(/-/g, '') ?? ''
@@ -26,70 +40,102 @@ export function generateFacturXMinimumXML(data: FacturXData): string {
     tvaGroups.set(item.tva_rate, existing)
   })
 
+  const clientName = client.company_name || `${client.first_name ?? ''} ${client.last_name ?? ''}`.trim()
+
+  // Line items XML
+  const lineItemsXml = items.map((item, index) => {
+    const unitCode = UNIT_CODES[item.unit] ?? 'C62'
+    const categoryCode = item.tva_rate === 0 ? 'E' : 'S'
+    return `
+    <ram:IncludedSupplyChainTradeLineItem>
+      <ram:AssociatedDocumentLineDocument>
+        <ram:LineID>${index + 1}</ram:LineID>
+      </ram:AssociatedDocumentLineDocument>
+      <ram:SpecifiedTradeProduct>
+        <ram:Name>${esc(item.description)}</ram:Name>
+      </ram:SpecifiedTradeProduct>
+      <ram:SpecifiedLineTradeAgreement>
+        <ram:NetPriceProductTradePrice>
+          <ram:ChargeAmount>${item.unit_price_ht.toFixed(2)}</ram:ChargeAmount>
+        </ram:NetPriceProductTradePrice>
+      </ram:SpecifiedLineTradeAgreement>
+      <ram:SpecifiedLineTradeDelivery>
+        <ram:BilledQuantity unitCode="${unitCode}">${item.quantity}</ram:BilledQuantity>
+      </ram:SpecifiedLineTradeDelivery>
+      <ram:SpecifiedLineTradeSettlement>
+        <ram:ApplicableTradeTax>
+          <ram:TypeCode>VAT</ram:TypeCode>
+          <ram:CategoryCode>${categoryCode}</ram:CategoryCode>
+          <ram:RateApplicablePercent>${item.tva_rate.toFixed(2)}</ram:RateApplicablePercent>
+        </ram:ApplicableTradeTax>
+        <ram:SpecifiedTradeSettlementLineMonetarySummation>
+          <ram:LineTotalAmount>${item.total_ht.toFixed(2)}</ram:LineTotalAmount>
+        </ram:SpecifiedTradeSettlementLineMonetarySummation>
+      </ram:SpecifiedLineTradeSettlement>
+    </ram:IncludedSupplyChainTradeLineItem>`
+  }).join('')
+
+  // TVA lines
   const tvaLines = Array.from(tvaGroups.entries())
-    .map(
-      ([rate, { baseHT, tva }]) => `
+    .map(([rate, { baseHT, tva }]) => `
         <ram:ApplicableTradeTax>
           <ram:CalculatedAmount>${tva.toFixed(2)}</ram:CalculatedAmount>
           <ram:TypeCode>VAT</ram:TypeCode>
           <ram:BasisAmount>${baseHT.toFixed(2)}</ram:BasisAmount>
           <ram:CategoryCode>${rate === 0 ? 'E' : 'S'}</ram:CategoryCode>
           <ram:RateApplicablePercent>${rate.toFixed(2)}</ram:RateApplicablePercent>
-        </ram:ApplicableTradeTax>`
-    )
+        </ram:ApplicableTradeTax>`)
     .join('')
 
   const exemptionReason = business.is_vat_exempt
-    ? `<ram:ExemptionReason>TVA non applicable, article 293 B du CGI</ram:ExemptionReason>`
+    ? `\n        <ram:ExemptionReason>TVA non applicable, article 293 B du CGI</ram:ExemptionReason>`
     : ''
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
   xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
   xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100"
   xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100">
   <rsm:ExchangedDocumentContext>
     <ram:GuidelineSpecifiedDocumentContextParameter>
-      <ram:ID>urn:factur-x.eu:1p0:minimum</ram:ID>
+      <ram:ID>urn:factur-x.eu:1p0:basic</ram:ID>
     </ram:GuidelineSpecifiedDocumentContextParameter>
   </rsm:ExchangedDocumentContext>
   <rsm:ExchangedDocument>
-    <ram:ID>${escapeXml(invoice.invoice_number)}</ram:ID>
+    <ram:ID>${esc(invoice.invoice_number)}</ram:ID>
     <ram:TypeCode>380</ram:TypeCode>
     <ram:IssueDateTime>
       <udt:DateTimeString format="102">${issueDate}</udt:DateTimeString>
     </ram:IssueDateTime>
   </rsm:ExchangedDocument>
-  <rsm:SupplyChainTradeTransaction>
+  <rsm:SupplyChainTradeTransaction>${lineItemsXml}
     <ram:ApplicableHeaderTradeAgreement>
       <ram:SellerTradeParty>
-        <ram:Name>${escapeXml(business.business_name)}</ram:Name>
-        ${business.siret ? `<ram:SpecifiedLegalOrganization><ram:ID schemeID="0002">${escapeXml(business.siret)}</ram:ID></ram:SpecifiedLegalOrganization>` : ''}
+        <ram:Name>${esc(business.business_name)}</ram:Name>
+        ${business.siret ? `<ram:SpecifiedLegalOrganization><ram:ID schemeID="0002">${esc(business.siret)}</ram:ID></ram:SpecifiedLegalOrganization>` : ''}
         <ram:PostalTradeAddress>
-          ${business.address_line1 ? `<ram:LineOne>${escapeXml(business.address_line1)}</ram:LineOne>` : ''}
-          ${business.postal_code ? `<ram:PostcodeCode>${escapeXml(business.postal_code)}</ram:PostcodeCode>` : ''}
-          ${business.city ? `<ram:CityName>${escapeXml(business.city)}</ram:CityName>` : ''}
-          <ram:CountryID>${business.country === 'France' ? 'FR' : 'FR'}</ram:CountryID>
-        </ram:PostalTradeAddress>
-        ${business.vat_number ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${escapeXml(business.vat_number)}</ram:ID></ram:SpecifiedTaxRegistration>` : ''}
-      </ram:SellerTradeParty>
-      <ram:BuyerTradeParty>
-        <ram:Name>${escapeXml(client.company_name || `${client.first_name ?? ''} ${client.last_name ?? ''}`.trim())}</ram:Name>
-        ${client.siret ? `<ram:SpecifiedLegalOrganization><ram:ID schemeID="0002">${escapeXml(client.siret)}</ram:ID></ram:SpecifiedLegalOrganization>` : ''}
-        <ram:PostalTradeAddress>
-          ${client.address_line1 ? `<ram:LineOne>${escapeXml(client.address_line1)}</ram:LineOne>` : ''}
-          ${client.postal_code ? `<ram:PostcodeCode>${escapeXml(client.postal_code)}</ram:PostcodeCode>` : ''}
-          ${client.city ? `<ram:CityName>${escapeXml(client.city)}</ram:CityName>` : ''}
+          ${business.address_line1 ? `<ram:LineOne>${esc(business.address_line1)}</ram:LineOne>` : ''}
+          ${business.postal_code ? `<ram:PostcodeCode>${esc(business.postal_code)}</ram:PostcodeCode>` : ''}
+          ${business.city ? `<ram:CityName>${esc(business.city)}</ram:CityName>` : ''}
           <ram:CountryID>FR</ram:CountryID>
         </ram:PostalTradeAddress>
-        ${client.vat_number ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${escapeXml(client.vat_number)}</ram:ID></ram:SpecifiedTaxRegistration>` : ''}
+        ${business.vat_number ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${esc(business.vat_number)}</ram:ID></ram:SpecifiedTaxRegistration>` : ''}
+      </ram:SellerTradeParty>
+      <ram:BuyerTradeParty>
+        <ram:Name>${esc(clientName)}</ram:Name>
+        ${client.siret ? `<ram:SpecifiedLegalOrganization><ram:ID schemeID="0002">${esc(client.siret)}</ram:ID></ram:SpecifiedLegalOrganization>` : ''}
+        <ram:PostalTradeAddress>
+          ${client.address_line1 ? `<ram:LineOne>${esc(client.address_line1)}</ram:LineOne>` : ''}
+          ${client.postal_code ? `<ram:PostcodeCode>${esc(client.postal_code)}</ram:PostcodeCode>` : ''}
+          ${client.city ? `<ram:CityName>${esc(client.city)}</ram:CityName>` : ''}
+          <ram:CountryID>FR</ram:CountryID>
+        </ram:PostalTradeAddress>
+        ${client.vat_number ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${esc(client.vat_number)}</ram:ID></ram:SpecifiedTaxRegistration>` : ''}
       </ram:BuyerTradeParty>
     </ram:ApplicableHeaderTradeAgreement>
     <ram:ApplicableHeaderTradeDelivery/>
     <ram:ApplicableHeaderTradeSettlement>
-      <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
-      ${tvaLines}
-      ${exemptionReason}
+      <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>${tvaLines}${exemptionReason}
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
         <ram:LineTotalAmount>${invoice.subtotal_ht.toFixed(2)}</ram:LineTotalAmount>
         <ram:TaxBasisTotalAmount>${invoice.subtotal_ht.toFixed(2)}</ram:TaxBasisTotalAmount>
@@ -101,11 +147,12 @@ export function generateFacturXMinimumXML(data: FacturXData): string {
     </ram:ApplicableHeaderTradeSettlement>
   </rsm:SupplyChainTradeTransaction>
 </rsm:CrossIndustryInvoice>`
-
-  return xml
 }
 
-function escapeXml(str: string): string {
+// Keep backward-compatible alias
+export const generateFacturXMinimumXML = generateFacturXBasicXML
+
+function esc(str: string): string {
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

@@ -13,13 +13,17 @@ import {
   Menu,
   X,
   Zap,
+  Receipt,
+  Truck,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { to: '', icon: LayoutDashboard, label: 'Tableau de bord', end: true },
   { to: 'invoices', icon: FileText, label: 'Factures' },
   { to: 'quotes', icon: FileCheck, label: 'Devis' },
+  { to: 'expenses', icon: Receipt, label: 'Dépenses' },
   { to: 'clients', icon: Users, label: 'Clients' },
+  { to: 'suppliers', icon: Truck, label: 'Fournisseurs' },
   { to: 'products', icon: Package, label: 'Produits' },
   { to: 'settings', icon: Settings, label: 'Paramètres' },
 ]

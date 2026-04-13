@@ -206,6 +206,82 @@ export interface QuoteItem {
   created_at: string
 }
 
+// --- Fournisseurs & Dépenses ---
+
+export type ExpenseStatus = 'a_payer' | 'paye' | 'en_litige'
+export type ExpenseSource = 'manuel' | 'facturx_import'
+
+export interface Supplier {
+  id: string
+  business_id: string
+  name: string
+  siret: string | null
+  vat_number: string | null
+  email: string | null
+  phone: string | null
+  address_line1: string | null
+  postal_code: string | null
+  city: string | null
+  country: string
+  notes: string | null
+  created_at: string
+}
+
+export interface Expense {
+  id: string
+  business_id: string
+  supplier_id: string | null
+  invoice_number: string | null
+  issue_date: string
+  due_date: string | null
+  subtotal_ht: number
+  total_tva: number
+  total_ttc: number
+  currency: string
+  status: ExpenseStatus
+  source: ExpenseSource
+  fichier_url: string | null
+  xml_data: unknown | null
+  notes: string | null
+  created_at: string
+  // Joined
+  supplier?: Supplier
+  items?: ExpenseItem[]
+}
+
+export interface ExpenseItem {
+  id: string
+  expense_id: string
+  description: string
+  quantity: number
+  unit_price_ht: number
+  total_ht: number
+  tva_rate: number
+  total_tva: number | null
+  pcg_account: string | null
+  created_at: string
+}
+
+export interface ExpenseItemDraft {
+  description: string
+  quantity: number
+  unit_price_ht: number
+  total_ht: number
+  tva_rate: number
+  pcg_account: string | null
+}
+
+export const EXPENSE_STATUS_INFO: Record<ExpenseStatus, { label: string; color: string }> = {
+  a_payer: { label: 'À payer', color: 'bg-orange-100 text-orange-700' },
+  paye: { label: 'Payé', color: 'bg-green-100 text-green-700' },
+  en_litige: { label: 'En litige', color: 'bg-red-100 text-red-700' },
+}
+
+export const EXPENSE_SOURCE_INFO: Record<ExpenseSource, { label: string; color: string }> = {
+  manuel: { label: 'Manuel', color: 'bg-gray-100 text-gray-600' },
+  facturx_import: { label: 'Factur-X', color: 'bg-primary-100 text-primary-700' },
+}
+
 // --- Dashboard & Stats ---
 
 export interface RevenueStats {
