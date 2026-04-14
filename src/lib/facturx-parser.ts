@@ -190,8 +190,9 @@ export async function extractFacturXFromFile(file: File): Promise<string | null>
 
       // Dynamic import — pdfjs-dist is heavy and only needed on import
       const pdfjs = await import('pdfjs-dist')
-      // Worker via CDN matching the installed version
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
+      // Bundle the worker via Vite's ?url import so version always matches
+      const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default
+      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
       const loadingTask = pdfjs.getDocument({
         data: bytes,
