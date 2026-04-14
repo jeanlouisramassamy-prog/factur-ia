@@ -6,6 +6,8 @@ import { LEGAL_FORM_LABELS } from '@/lib/types'
 import type { PaymentMethod, Territoire } from '@/lib/types'
 import { PAYMENT_METHODS } from '@/lib/types'
 import { Building2, CreditCard, FileText, Shield, Save, Globe, GraduationCap } from 'lucide-react'
+import { validateSiret, validateVatNumber, validateEmail, validatePhone, validatePostalCode, validateIban, validateBic, validateFields, hasErrors } from '@/lib/validators'
+import type { FieldErrors } from '@/lib/validators'
 
 export function SettingsPage() {
   const { business, setBusiness } = useAuthStore()
@@ -33,10 +35,31 @@ export function SettingsPage() {
     exoneration_tva_formation: business?.exoneration_tva_formation ?? false,
   })
 
-  const update = (field: string, value: string | number | boolean | null) => setForm((p) => ({ ...p, [field]: value }))
+  const [errors, setErrors] = useState<FieldErrors>({})
+
+  const update = (field: string, value: string | number | boolean | null) => {
+    setForm((p) => ({ ...p, [field]: value }))
+    if (errors[field]) setErrors((prev) => { const n = { ...prev }; delete n[field]; return n })
+  }
 
   const handleSave = async () => {
     if (!business) return
+
+    const fieldErrors = validateFields([
+      { field: 'siret', result: validateSiret(form.siret) },
+      { field: 'vat_number', result: validateVatNumber(form.vat_number) },
+      { field: 'email', result: validateEmail(form.email) },
+      { field: 'phone', result: validatePhone(form.phone) },
+      { field: 'postal_code', result: validatePostalCode(form.postal_code) },
+      { field: 'iban', result: validateIban(form.iban) },
+      { field: 'bic', result: validateBic(form.bic) },
+    ])
+    if (hasErrors(fieldErrors)) {
+      setErrors(fieldErrors)
+      toast('Veuillez corriger les erreurs de saisie.', 'error')
+      return
+    }
+
     setSaving(true)
     const isExempt = form.legal_form === 'auto_entrepreneur'
     const { data, error } = await supabase
@@ -92,14 +115,17 @@ export function SettingsPage() {
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">SIRET</label>
             <input type="text" value={form.siret} onChange={(e) => update('siret', e.target.value.replace(/\D/g, '').slice(0, 14))} maxLength={14} className="w-full rounded-lg border border-surface-300 px-4 py-2 text-sm outline-none" />
+            {errors.siret && <p className="mt-1 text-xs text-red-600">{errors.siret}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">N° TVA</label>
             <input type="text" value={form.vat_number} onChange={(e) => update('vat_number', e.target.value)} className="w-full rounded-lg border border-surface-300 px-4 py-2 text-sm outline-none" placeholder="FR12345678901" />
+            {errors.vat_number && <p className="mt-1 text-xs text-red-600">{errors.vat_number}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">Téléphone</label>
             <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} className="w-full rounded-lg border border-surface-300 px-4 py-2 text-sm outline-none" />
+            {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
           </div>
           <div className="col-span-2">
             <label className="block text-sm font-medium text-surface-700 mb-1">Adresse</label>
@@ -108,6 +134,7 @@ export function SettingsPage() {
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">Code postal</label>
             <input type="text" value={form.postal_code} onChange={(e) => update('postal_code', e.target.value)} maxLength={5} className="w-full rounded-lg border border-surface-300 px-4 py-2 text-sm outline-none" />
+            {errors.postal_code && <p className="mt-1 text-xs text-red-600">{errors.postal_code}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">Ville</label>
@@ -126,10 +153,12 @@ export function SettingsPage() {
           <div className="col-span-2">
             <label className="block text-sm font-medium text-surface-700 mb-1">IBAN</label>
             <input type="text" value={form.iban} onChange={(e) => update('iban', e.target.value.toUpperCase())} className="w-full rounded-lg border border-surface-300 px-4 py-2 text-sm font-mono outline-none" />
+            {errors.iban && <p className="mt-1 text-xs text-red-600">{errors.iban}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-surface-700 mb-1">BIC</label>
             <input type="text" value={form.bic} onChange={(e) => update('bic', e.target.value.toUpperCase())} className="w-full rounded-lg border border-surface-300 px-4 py-2 text-sm font-mono outline-none" />
+            {errors.bic && <p className="mt-1 text-xs text-red-600">{errors.bic}</p>}
           </div>
         </div>
       </div>
