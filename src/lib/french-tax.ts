@@ -128,7 +128,7 @@ export const ACRE_DOM_RATES: Record<number, number> = {
 }
 
 export function getAcreDomMultiplier(annee: number | null): number {
-  if (!annee || !ACRE_DOM_RATES[annee]) return 100
+  if (annee == null || !(annee in ACRE_DOM_RATES)) return 100
   return ACRE_DOM_RATES[annee]
 }
 
