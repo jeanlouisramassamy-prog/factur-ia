@@ -3,7 +3,7 @@
 // Template professionnel conforme aux obligations françaises
 // ============================================================
 
-import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer'
+import { Document, Page, Text, View, Image, StyleSheet, pdf } from '@react-pdf/renderer'
 import { PDFDocument, AFRelationship } from 'pdf-lib'
 import { createElement } from 'react'
 import type { Invoice, InvoiceItem, Business, Client } from './types'
@@ -38,6 +38,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'Helvetica-Bold',
     color: colors.primary,
+  },
+  logo: {
+    maxWidth: 120,
+    maxHeight: 50,
+    marginBottom: 6,
+    objectFit: 'contain' as const,
   },
   invoiceTitle: {
     fontSize: 14,
@@ -242,6 +248,9 @@ function InvoicePDFDocument({ invoice, items, business, client }: InvoicePDFData
       // Header
       e(View, { style: styles.header },
         e(View, null,
+          business.logo_url
+            ? e(Image, { src: business.logo_url, style: styles.logo })
+            : null,
           e(Text, { style: styles.brandName }, business.business_name),
           e(Text, { style: styles.partyDetail },
             [business.address_line1, `${business.postal_code ?? ''} ${business.city ?? ''}`.trim()].filter(Boolean).join('\n')

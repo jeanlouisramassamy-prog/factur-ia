@@ -5,7 +5,7 @@ import { toast } from '@/components/common/Toast'
 import { LEGAL_FORM_LABELS } from '@/lib/types'
 import type { PaymentMethod, Territoire } from '@/lib/types'
 import { PAYMENT_METHODS } from '@/lib/types'
-import { Building2, CreditCard, FileText, Shield, Save, Globe, GraduationCap } from 'lucide-react'
+import { Building2, CreditCard, FileText, Shield, Save, Globe, GraduationCap, Upload, Trash2, ImageIcon } from 'lucide-react'
 import { validateSiret, validateVatNumber, validateEmail, validatePhone, validatePostalCode, validateIban, validateBic, validateFields, hasErrors } from '@/lib/validators'
 import type { FieldErrors } from '@/lib/validators'
 
@@ -36,6 +36,68 @@ export function SettingsPage() {
   })
 
   const [errors, setErrors] = useState<FieldErrors>({})
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !business) return
+    if (!file.type.startsWith('image/')) {
+      toast('Veuillez sélectionner une image (PNG, JPG, SVG).', 'error')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast('Le logo ne doit pas dépasser 2 Mo.', 'error')
+      return
+    }
+
+    setUploadingLogo(true)
+    const ext = file.name.split('.').pop() ?? 'png'
+    const path = `${business.id}/logo.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('logos')
+      .upload(path, file, { upsert: true })
+
+    if (uploadError) {
+      toast(uploadError.message, 'error')
+      setUploadingLogo(false)
+      return
+    }
+
+    const { data: urlData } = supabase.storage.from('logos').getPublicUrl(path)
+    const logoUrl = urlData.publicUrl + '?t=' + Date.now()
+
+    const { data, error } = await supabase
+      .from('businesses')
+      .update({ logo_url: logoUrl })
+      .eq('id', business.id)
+      .select()
+      .single()
+
+    setUploadingLogo(false)
+    if (error) {
+      toast(error.message, 'error')
+    } else if (data) {
+      setBusiness(data)
+      toast('Logo mis à jour', 'success')
+    }
+  }
+
+  const handleLogoRemove = async () => {
+    if (!business) return
+    const { data, error } = await supabase
+      .from('businesses')
+      .update({ logo_url: null })
+      .eq('id', business.id)
+      .select()
+      .single()
+    if (error) {
+      toast(error.message, 'error')
+    } else if (data) {
+      setBusiness(data)
+      toast('Logo supprimé', 'success')
+    }
+  }
 
   const update = (field: string, value: string | number | boolean | null) => {
     setForm((p) => ({ ...p, [field]: value }))
@@ -94,6 +156,42 @@ export function SettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-2xl font-bold text-surface-900">Paramètres</h1>
+
+      {/* Logo */}
+      <div className="bg-white rounded-xl border border-surface-200 p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <ImageIcon className="h-5 w-5 text-primary-600" />
+          <h2 className="text-lg font-semibold">Logo</h2>
+        </div>
+        <p className="text-sm text-surface-600">
+          Votre logo apparaîtra sur les factures et devis PDF.
+        </p>
+        <div className="flex items-center gap-4">
+          {business?.logo_url ? (
+            <div className="flex items-center gap-4">
+              <img src={business.logo_url} alt="Logo" className="h-16 w-auto max-w-[200px] rounded border border-surface-200 object-contain" />
+              <button
+                onClick={handleLogoRemove}
+                className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="h-4 w-4" /> Supprimer
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="h-16 w-16 rounded border-2 border-dashed border-surface-300 flex items-center justify-center text-surface-400">
+                <ImageIcon className="h-6 w-6" />
+              </div>
+              <span className="text-sm text-surface-500">Aucun logo</span>
+            </div>
+          )}
+          <label className={`inline-flex items-center gap-2 rounded-lg border border-surface-300 px-4 py-2 text-sm font-medium text-surface-700 hover:bg-surface-50 cursor-pointer ${uploadingLogo ? 'opacity-50 pointer-events-none' : ''}`}>
+            <Upload className="h-4 w-4" />
+            {uploadingLogo ? 'Upload...' : 'Changer'}
+            <input type="file" accept="image/png,image/jpeg,image/svg+xml" onChange={handleLogoUpload} className="hidden" />
+          </label>
+        </div>
+      </div>
 
       {/* Business info */}
       <div className="bg-white rounded-xl border border-surface-200 p-5 space-y-4">
