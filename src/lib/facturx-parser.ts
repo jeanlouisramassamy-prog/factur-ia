@@ -173,7 +173,7 @@ export function parseFacturXml(xmlString: string): ParsedFacturX | null {
 
 /**
  * Try to extract XML from a file. Accepts .xml files directly
- * or attempts to find embedded XML in a PDF.
+ * or extracts the Factur-X XML attachment from a PDF/A-3 using pdfjs-dist.
  */
 export async function extractFacturXFromFile(file: File): Promise<string | null> {
   const name = file.name.toLowerCase()
@@ -183,28 +183,60 @@ export async function extractFacturXFromFile(file: File): Promise<string | null>
     return await file.text()
   }
 
-  // PDF file — try to find embedded factur-x.xml
+  // PDF file — extract XML attachment via pdfjs-dist
   if (name.endsWith('.pdf')) {
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    // Simple heuristic: search for XML header within PDF
-    const text = new TextDecoder('latin1').decode(bytes)
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer())
 
-    // Look for the Factur-X XML signature in the raw PDF
-    const xmlStart = text.indexOf('<?xml')
-    if (xmlStart === -1) return null
+      // Dynamic import — pdfjs-dist is heavy and only needed on import
+      const pdfjs = await import('pdfjs-dist')
+      // Worker config — use the fake worker fallback (no worker file needed)
+      pdfjs.GlobalWorkerOptions.workerSrc = ''
 
-    // Find the CrossIndustryInvoice tag
-    const ciiStart = text.indexOf('<rsm:CrossIndustryInvoice', xmlStart)
-    if (ciiStart === -1) return null
+      const loadingTask = pdfjs.getDocument({
+        data: bytes,
+        isEvalSupported: false,
+        useSystemFonts: true,
+      })
+      const pdf = await loadingTask.promise
+      const attachments = await pdf.getAttachments()
 
-    const ciiEnd = text.indexOf('</rsm:CrossIndustryInvoice>', ciiStart)
-    if (ciiEnd === -1) return null
+      if (!attachments) {
+        // Fallback: naive text search for uncompressed XML
+        return fallbackTextSearch(bytes)
+      }
 
-    const xmlContent = text.slice(ciiStart, ciiEnd + '</rsm:CrossIndustryInvoice>'.length)
+      // Look for a factur-x.xml or zugferd-invoice.xml attachment
+      for (const [filename, attachment] of Object.entries(attachments)) {
+        const lower = filename.toLowerCase()
+        if (lower.endsWith('.xml')) {
+          const att = attachment as { content: Uint8Array | ArrayBuffer }
+          const content = att.content instanceof Uint8Array
+            ? att.content
+            : new Uint8Array(att.content)
+          return new TextDecoder('utf-8').decode(content)
+        }
+      }
 
-    // Add XML declaration
-    return `<?xml version="1.0" encoding="UTF-8"?>\n${xmlContent}`
+      // No XML attachment found — fallback to text search
+      return fallbackTextSearch(bytes)
+    } catch (err) {
+      console.error('PDF parsing error:', err)
+      return null
+    }
   }
 
   return null
+}
+
+function fallbackTextSearch(bytes: Uint8Array): string | null {
+  const text = new TextDecoder('latin1').decode(bytes)
+  const xmlStart = text.indexOf('<?xml')
+  if (xmlStart === -1) return null
+  const ciiStart = text.indexOf('<rsm:CrossIndustryInvoice', xmlStart)
+  if (ciiStart === -1) return null
+  const ciiEnd = text.indexOf('</rsm:CrossIndustryInvoice>', ciiStart)
+  if (ciiEnd === -1) return null
+  const xmlContent = text.slice(ciiStart, ciiEnd + '</rsm:CrossIndustryInvoice>'.length)
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${xmlContent}`
 }
