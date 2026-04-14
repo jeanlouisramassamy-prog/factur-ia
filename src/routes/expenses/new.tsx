@@ -29,6 +29,8 @@ export function ExpenseNewPage() {
   const [source, setSource] = useState<'manuel' | 'facturx_import'>('manuel')
   const [items, setItems] = useState<ExpenseItemDraft[]>([emptyItem()])
   const [importedXml, setImportedXml] = useState<string | null>(null)
+  const [pendingSupplier, setPendingSupplier] = useState<{ name: string; siret: string | null; vat_number: string | null } | null>(null)
+  const [creatingSupplier, setCreatingSupplier] = useState(false)
 
   useEffect(() => {
     if (business) {
@@ -51,10 +53,23 @@ export function ExpenseNewPage() {
     if (parsed.dueDate) setDueDate(parsed.dueDate)
     setImportedXml(parsed.rawXml)
 
-    // Try to match supplier by SIRET
+    // Try to match supplier by SIRET, else offer creation
     if (parsed.supplierSiret) {
       const match = suppliers.find((s) => s.siret === parsed.supplierSiret)
+      if (match) {
+        setSupplierId(match.id)
+      } else if (parsed.supplierName) {
+        setPendingSupplier({
+          name: parsed.supplierName,
+          siret: parsed.supplierSiret,
+          vat_number: parsed.supplierVatNumber,
+        })
+      }
+    } else if (parsed.supplierName) {
+      // No SIRET — try to match by name
+      const match = suppliers.find((s) => s.name.toLowerCase() === parsed.supplierName.toLowerCase())
       if (match) setSupplierId(match.id)
+      else setPendingSupplier({ name: parsed.supplierName, siret: null, vat_number: parsed.supplierVatNumber })
     }
 
     // Set items from parsed lines
@@ -134,6 +149,26 @@ export function ExpenseNewPage() {
     navigate(`/app/expenses/${expense.id}`)
   }
 
+  const handleCreateSupplier = async () => {
+    if (!business || !pendingSupplier) return
+    setCreatingSupplier(true)
+    const { data, error } = await supabase.from('suppliers').insert({
+      business_id: business.id,
+      name: pendingSupplier.name,
+      siret: pendingSupplier.siret,
+      vat_number: pendingSupplier.vat_number,
+    }).select().single()
+    setCreatingSupplier(false)
+    if (error || !data) {
+      toast(error?.message ?? 'Erreur création fournisseur', 'error')
+      return
+    }
+    setSuppliers((prev) => [...prev, data])
+    setSupplierId(data.id)
+    setPendingSupplier(null)
+    toast(`Fournisseur "${data.name}" créé`, 'success')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -156,6 +191,26 @@ export function ExpenseNewPage() {
                 <option value="">Sélectionner un fournisseur...</option>
                 {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+              {pendingSupplier && !supplierId && (
+                <div className="mt-2 flex items-center justify-between rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm">
+                  <div>
+                    <p className="font-medium text-primary-900">{pendingSupplier.name}</p>
+                    <p className="text-xs text-primary-700">
+                      {pendingSupplier.siret ? `SIRET : ${pendingSupplier.siret}` : 'SIRET non fourni'}
+                      {pendingSupplier.vat_number ? ` · TVA : ${pendingSupplier.vat_number}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCreateSupplier}
+                    disabled={creatingSupplier}
+                    className="inline-flex items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+                  >
+                    <Plus className="h-3 w-3" />
+                    {creatingSupplier ? 'Création...' : 'Créer ce fournisseur'}
+                  </button>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
