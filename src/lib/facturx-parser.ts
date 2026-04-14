@@ -190,8 +190,8 @@ export async function extractFacturXFromFile(file: File): Promise<string | null>
 
       // Dynamic import — pdfjs-dist is heavy and only needed on import
       const pdfjs = await import('pdfjs-dist')
-      // Worker config — use the fake worker fallback (no worker file needed)
-      pdfjs.GlobalWorkerOptions.workerSrc = ''
+      // Worker via CDN matching the installed version
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 
       const loadingTask = pdfjs.getDocument({
         data: bytes,
