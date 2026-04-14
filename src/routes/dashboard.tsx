@@ -82,7 +82,6 @@ export function DashboardPage() {
       .from('invoices')
       .select('*, client:clients(*), items:invoice_items(*)')
       .eq('business_id', business.id)
-      .in('status', ['sent', 'paid'])
       .gte('issue_date', `${year}-01-01`)
       .lte('issue_date', `${year}-12-31`)
       .order('issue_date')
@@ -95,10 +94,11 @@ export function DashboardPage() {
     const fecData = invoices.map((inv) => ({
       ...inv,
       items: inv.items ?? [],
+      client: inv.client ?? undefined,
       clientName: inv.client ? getClientDisplayName(inv.client) : 'Client inconnu',
     }))
 
-    const content = generateFEC(fecData, business.business_name)
+    const content = generateFEC(fecData)
     downloadFEC(content, `FEC_${business.siret || business.business_name}_${year}.txt`)
     toast('Export FEC téléchargé', 'success')
   }
