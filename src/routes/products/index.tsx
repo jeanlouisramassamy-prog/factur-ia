@@ -7,12 +7,14 @@ import { PRODUCT_CATEGORIES, getCategoryById, ACTIVITY_BADGES } from '@/lib/prod
 import type { ItemUnit } from '@/lib/types'
 import { ITEM_UNITS } from '@/lib/types'
 import { useProducts } from '@/hooks/useData'
-import { Package, Plus, Tag, X, Archive, GraduationCap } from 'lucide-react'
+import { CSVImportModal } from '@/components/common/CSVImportModal'
+import { Package, Plus, Tag, X, Archive, GraduationCap, Upload } from 'lucide-react'
 
 export function ProductsPage() {
   const { business } = useAuthStore()
   const { products, loading, refetch } = useProducts(business?.id, { activeOnly: false })
   const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const isExempt = business?.is_vat_exempt ?? false
@@ -64,13 +66,22 @@ export function ProductsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-surface-900">Catalogue produits</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
-        >
-          <Plus className="h-4 w-4" />
-          Nouveau produit
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-surface-300 px-4 py-2.5 text-sm font-medium text-surface-700 hover:bg-surface-50"
+          >
+            <Upload className="h-4 w-4" />
+            Importer CSV
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
+          >
+            <Plus className="h-4 w-4" />
+            Nouveau produit
+          </button>
+        </div>
       </div>
 
       {isExempt && (
@@ -226,6 +237,14 @@ export function ProductsPage() {
           </div>
         )}
       </div>
+
+      {showImport && (
+        <CSVImportModal
+          type="products"
+          onClose={() => setShowImport(false)}
+          onImported={refetch}
+        />
+      )}
     </div>
   )
 }

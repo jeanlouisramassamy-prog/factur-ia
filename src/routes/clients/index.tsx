@@ -4,16 +4,18 @@ import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { getClientDisplayName } from '@/lib/utils'
 import { toast } from '@/components/common/Toast'
-import { Users, Plus, Search, Mail, Phone, ChevronRight } from 'lucide-react'
+import { Users, Plus, Search, Mail, Phone, ChevronRight, Upload } from 'lucide-react'
 import { validateSiret, validateEmail, validatePhone, validatePostalCode, validateFields, hasErrors } from '@/lib/validators'
 import type { FieldErrors } from '@/lib/validators'
 import { useClients } from '@/hooks/useData'
+import { CSVImportModal } from '@/components/common/CSVImportModal'
 
 export function ClientsListPage() {
   const { business } = useAuthStore()
   const { clients, loading, refetch } = useClients(business?.id)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     company_name: '',
@@ -83,13 +85,22 @@ export function ClientsListPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-surface-900">Clients</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
-        >
-          <Plus className="h-4 w-4" />
-          Nouveau client
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-surface-300 px-4 py-2.5 text-sm font-medium text-surface-700 hover:bg-surface-50"
+          >
+            <Upload className="h-4 w-4" />
+            Importer CSV
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
+          >
+            <Plus className="h-4 w-4" />
+            Nouveau client
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -190,6 +201,14 @@ export function ClientsListPage() {
           </div>
         )}
       </div>
+
+      {showImport && (
+        <CSVImportModal
+          type="clients"
+          onClose={() => setShowImport(false)}
+          onImported={refetch}
+        />
+      )}
     </div>
   )
 }
