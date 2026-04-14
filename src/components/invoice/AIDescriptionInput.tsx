@@ -64,31 +64,42 @@ export function AIDescriptionInput({ products, onGenerate }: AIDescriptionInputP
         return
       }
 
-      // Convert to InvoiceItemDraft format
-      const items: InvoiceItemDraft[] = lines.map((line: {
-        description: string
-        quantity: number
-        unit: string
-        unit_price_ht: number
-        tva_rate: number
-        category: string
-        activity_type: string
-      }) => {
-        const cat = PRODUCT_CATEGORIES.find((c) => c.id === line.category)
-        return {
-          product_id: null,
-          description: line.description,
-          quantity: line.quantity || 1,
-          unit: (line.unit || 'unité') as InvoiceItemDraft['unit'],
-          unit_price_ht: line.unit_price_ht || 0,
-          tva_rate: isExempt ? 0 : (line.tva_rate ?? 20),
-          category: cat?.id ?? (isExempt ? 'exempt_293b' : 'prestation_generale'),
-          activity_type: (line.activity_type || 'service') as InvoiceItemDraft['activity_type'],
-          pcg_account: cat?.pcg_account ?? null,
-          octroi_de_mer: 0,
-          octroi_de_mer_regional: 0,
-        }
-      })
+      const validUnits: InvoiceItemDraft['unit'][] = ['unité', 'heure', 'jour', 'forfait', 'm²', 'kg', 'lot', 'session', 'pièce']
+      const validActivityTypes: InvoiceItemDraft['activity_type'][] = ['service', 'goods', 'produit_fini', 'formation', 'export', 'exempt']
+
+      // Validate and convert to InvoiceItemDraft format
+      const items: InvoiceItemDraft[] = lines
+        .filter((line: unknown): line is Record<string, unknown> =>
+          typeof line === 'object' && line !== null && typeof (line as Record<string, unknown>).description === 'string'
+        )
+        .map((line) => {
+          const cat = PRODUCT_CATEGORIES.find((c) => c.id === String(line.category))
+          const unit = validUnits.includes(String(line.unit) as InvoiceItemDraft['unit'])
+            ? (String(line.unit) as InvoiceItemDraft['unit'])
+            : 'unité'
+          const activityType = validActivityTypes.includes(String(line.activity_type) as InvoiceItemDraft['activity_type'])
+            ? (String(line.activity_type) as InvoiceItemDraft['activity_type'])
+            : 'service'
+          return {
+            product_id: null,
+            description: String(line.description).slice(0, 500),
+            quantity: Math.max(0.01, Number(line.quantity) || 1),
+            unit,
+            unit_price_ht: Math.max(0, Math.round((Number(line.unit_price_ht) || 0) * 100) / 100),
+            tva_rate: isExempt ? 0 : Math.max(0, Number(line.tva_rate) ?? 20),
+            category: cat?.id ?? (isExempt ? 'exempt_293b' : 'prestation_generale'),
+            activity_type: activityType,
+            pcg_account: cat?.pcg_account ?? null,
+            octroi_de_mer: 0,
+            octroi_de_mer_regional: 0,
+          }
+        })
+
+      if (items.length === 0) {
+        toast('L\'IA n\'a pas pu générer de lignes valides. Reformulez votre description.', 'warning')
+        setLoading(false)
+        return
+      }
 
       onGenerate(items)
       setDescription('')

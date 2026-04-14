@@ -94,7 +94,7 @@ Règles :
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-3-5-haiku-20241022',
         max_tokens: 1024,
         system: systemPrompt,
         messages: [
@@ -127,7 +127,47 @@ Règles :
       )
     }
 
-    const lines: GeneratedLine[] = JSON.parse(jsonMatch[0])
+    let parsed: unknown[]
+    try {
+      parsed = JSON.parse(jsonMatch[0])
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Réponse IA : JSON invalide', raw: content }),
+        { status: 422, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Réponse IA vide' }),
+        { status: 422, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const validUnits = ['unité', 'heure', 'jour', 'forfait', 'm²', 'kg', 'lot', 'session', 'pièce']
+    const validActivityTypes = ['service', 'goods', 'produit_fini', 'formation', 'export', 'exempt']
+    const categoryIds = new Set(categories.map(c => c.id))
+
+    const lines: GeneratedLine[] = parsed
+      .filter((item): item is Record<string, unknown> =>
+        typeof item === 'object' && item !== null && typeof (item as Record<string, unknown>).description === 'string'
+      )
+      .map((item) => ({
+        description: String(item.description).slice(0, 500),
+        quantity: Math.max(0.01, Number(item.quantity) || 1),
+        unit: validUnits.includes(String(item.unit)) ? String(item.unit) : 'unité',
+        unit_price_ht: Math.max(0, Math.round((Number(item.unit_price_ht) || 0) * 100) / 100),
+        tva_rate: Math.max(0, Number(item.tva_rate) || 0),
+        category: categoryIds.has(String(item.category)) ? String(item.category) : (is_vat_exempt ? 'exempt_293b' : 'prestation_generale'),
+        activity_type: validActivityTypes.includes(String(item.activity_type)) ? String(item.activity_type) : 'service',
+      }))
+
+    if (lines.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Aucune ligne valide générée par l\'IA' }),
+        { status: 422, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      )
+    }
 
     return new Response(
       JSON.stringify({ lines }),
