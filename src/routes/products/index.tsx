@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/common/Toast'
 import { formatCurrency } from '@/lib/utils'
 import { PRODUCT_CATEGORIES, getCategoryById, ACTIVITY_BADGES } from '@/lib/product-categories'
-import type { Product, ItemUnit } from '@/lib/types'
+import type { ItemUnit } from '@/lib/types'
 import { ITEM_UNITS } from '@/lib/types'
+import { useProducts } from '@/hooks/useData'
 import { Package, Plus, Tag, X, Archive, GraduationCap } from 'lucide-react'
 
 export function ProductsPage() {
   const { business } = useAuthStore()
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
+  const { products, loading, refetch } = useProducts(business?.id, { activeOnly: false })
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -24,21 +24,6 @@ export function ProductsPage() {
     unit: 'unité' as ItemUnit,
     default_price_ht: '',
   })
-
-  useEffect(() => {
-    if (business) loadProducts()
-  }, [business])
-
-  const loadProducts = async () => {
-    if (!business) return
-    const { data } = await supabase
-      .from('products')
-      .select('*')
-      .eq('business_id', business.id)
-      .order('name')
-    if (data) setProducts(data)
-    setLoading(false)
-  }
 
   const selectedCategory = getCategoryById(form.category)
 
@@ -67,7 +52,7 @@ export function ProductsPage() {
       toast('Produit créé', 'success')
       setShowForm(false)
       setForm({ name: '', description: '', category: isExempt ? 'exempt_293b' : 'prestation_generale', unit: 'unité', default_price_ht: '' })
-      loadProducts()
+      refetch()
     }
   }
 

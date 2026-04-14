@@ -4,8 +4,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/common/Toast'
 import { formatCurrency, todayISO } from '@/lib/utils'
-import type { Supplier, ExpenseItemDraft } from '@/lib/types'
+import type { ExpenseItemDraft } from '@/lib/types'
 import type { ParsedFacturX } from '@/lib/facturx-parser'
+import { useSuppliers } from '@/hooks/useData'
 import { ArrowLeft, Save, Plus, Trash2, Zap } from 'lucide-react'
 
 function emptyItem(): ExpenseItemDraft {
@@ -18,7 +19,7 @@ export function ExpenseNewPage() {
   const [searchParams] = useSearchParams()
   const isImport = searchParams.get('source') === 'facturx'
 
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const { suppliers, setSuppliers } = useSuppliers(business?.id)
   const [saving, setSaving] = useState(false)
 
   const [supplierId, setSupplierId] = useState('')
@@ -31,13 +32,6 @@ export function ExpenseNewPage() {
   const [importedXml, setImportedXml] = useState<string | null>(null)
   const [pendingSupplier, setPendingSupplier] = useState<{ name: string; siret: string | null; vat_number: string | null } | null>(null)
   const [creatingSupplier, setCreatingSupplier] = useState(false)
-
-  useEffect(() => {
-    if (business) {
-      supabase.from('suppliers').select('*').eq('business_id', business.id).order('name')
-        .then(({ data }) => { if (data) setSuppliers(data) })
-    }
-  }, [business])
 
   // Load Factur-X import data
   useEffect(() => {

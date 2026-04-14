@@ -1,19 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { getClientDisplayName } from '@/lib/utils'
 import { toast } from '@/components/common/Toast'
-import type { Client } from '@/lib/types'
 import { Users, Plus, Search, Mail, Phone, ChevronRight } from 'lucide-react'
 import { validateSiret, validateEmail, validatePhone, validatePostalCode, validateFields, hasErrors } from '@/lib/validators'
 import type { FieldErrors } from '@/lib/validators'
+import { useClients } from '@/hooks/useData'
 
 export function ClientsListPage() {
   const { business } = useAuthStore()
-  const [clients, setClients] = useState<Client[]>([])
+  const { clients, loading, refetch } = useClients(business?.id)
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
@@ -27,21 +26,6 @@ export function ClientsListPage() {
     city: '',
     siret: '',
   })
-
-  useEffect(() => {
-    if (business) loadClients()
-  }, [business])
-
-  const loadClients = async () => {
-    if (!business) return
-    const { data } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('business_id', business.id)
-      .order('created_at', { ascending: false })
-    if (data) setClients(data)
-    setLoading(false)
-  }
 
   const [errors, setErrors] = useState<FieldErrors>({})
 
@@ -81,7 +65,7 @@ export function ClientsListPage() {
       toast('Client créé', 'success')
       setShowForm(false)
       setForm({ company_name: '', first_name: '', last_name: '', email: '', phone: '', address_line1: '', postal_code: '', city: '', siret: '' })
-      loadClients()
+      refetch()
     }
   }
 

@@ -1,36 +1,22 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
-import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatDateShort } from '@/lib/utils'
 import { EXPENSE_STATUS_INFO, EXPENSE_SOURCE_INFO } from '@/lib/types'
-import type { Expense, ExpenseStatus } from '@/lib/types'
+import type { ExpenseStatus } from '@/lib/types'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { toast } from '@/components/common/Toast'
 import { extractFacturXFromFile, parseFacturXml } from '@/lib/facturx-parser'
+import { useExpenses } from '@/hooks/useData'
 import { Receipt, Plus, Search, Filter, Upload } from 'lucide-react'
 
 export function ExpensesListPage() {
   const { business } = useAuthStore()
   const navigate = useNavigate()
-  const [expenses, setExpenses] = useState<Expense[]>([])
-  const [loading, setLoading] = useState(true)
+  const { expenses, loading } = useExpenses(business?.id)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ExpenseStatus | 'all'>('all')
   const [importing, setImporting] = useState(false)
-
-  useEffect(() => { if (business) loadExpenses() }, [business])
-
-  const loadExpenses = async () => {
-    if (!business) return
-    const { data } = await supabase
-      .from('expenses')
-      .select('*, supplier:suppliers(*)')
-      .eq('business_id', business.id)
-      .order('issue_date', { ascending: false })
-    if (data) setExpenses(data)
-    setLoading(false)
-  }
 
   const handleFileImport = useCallback(async (file: File) => {
     setImporting(true)

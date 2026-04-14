@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
@@ -7,7 +7,8 @@ import { formatCurrency, todayISO, calculateItemTotalHT, calculateItemTVA, getCl
 import { PRODUCT_CATEGORIES, getCategoryById } from '@/lib/product-categories'
 import { adaptTVAForTerritoire } from '@/lib/french-tax'
 import { ITEM_UNITS } from '@/lib/types'
-import type { Client, Product, QuoteItemDraft, ItemUnit } from '@/lib/types'
+import type { QuoteItemDraft, ItemUnit } from '@/lib/types'
+import { useClients, useProducts } from '@/hooks/useData'
 import { AIDescriptionInput } from '@/components/invoice/AIDescriptionInput'
 import { Plus, Trash2, ArrowLeft, Save } from 'lucide-react'
 
@@ -20,8 +21,8 @@ function emptyItem(isExempt: boolean, territoire: string = 'metropole'): QuoteIt
 export function QuoteNewPage() {
   const { business } = useAuthStore()
   const navigate = useNavigate()
-  const [clients, setClients] = useState<Client[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const { clients } = useClients(business?.id)
+  const { products } = useProducts(business?.id)
   const [saving, setSaving] = useState(false)
   const isExempt = business?.is_vat_exempt ?? false
   const territoire = business?.territoire ?? 'metropole'
@@ -31,12 +32,6 @@ export function QuoteNewPage() {
   const [validityDays, setValidityDays] = useState(30)
   const [notes] = useState('')
   const [items, setItems] = useState<QuoteItemDraft[]>([emptyItem(isExempt, territoire)])
-
-  useEffect(() => {
-    if (!business) return
-    supabase.from('clients').select('*').eq('business_id', business.id).order('company_name').then(({ data }) => { if (data) setClients(data) })
-    supabase.from('products').select('*').eq('business_id', business.id).eq('is_active', true).order('name').then(({ data }) => { if (data) setProducts(data) })
-  }, [business])
 
   const updateItem = (i: number, u: Partial<QuoteItemDraft>) => setItems((p) => p.map((it, idx) => idx === i ? { ...it, ...u } : it))
   const addItem = () => setItems((p) => [...p, emptyItem(isExempt, territoire)])

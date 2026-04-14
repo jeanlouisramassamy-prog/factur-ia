@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
@@ -15,7 +15,8 @@ import { PRODUCT_CATEGORIES, getCategoryById } from '@/lib/product-categories'
 import { LEGAL_MENTIONS, adaptTVAForTerritoire } from '@/lib/french-tax'
 import { generateFacturXMinimumXML } from '@/lib/facturx-xml'
 import { ITEM_UNITS, PAYMENT_METHODS } from '@/lib/types'
-import type { Client, Product, InvoiceItemDraft, ItemUnit, PaymentMethod } from '@/lib/types'
+import type { InvoiceItemDraft, ItemUnit, PaymentMethod } from '@/lib/types'
+import { useClients, useProducts } from '@/hooks/useData'
 import { AIDescriptionInput } from '@/components/invoice/AIDescriptionInput'
 import { Plus, Trash2, ArrowLeft, Save } from 'lucide-react'
 
@@ -41,8 +42,8 @@ function emptyItem(isExempt: boolean, territoire: string = 'metropole'): Invoice
 export function InvoiceNewPage() {
   const { business } = useAuthStore()
   const navigate = useNavigate()
-  const [clients, setClients] = useState<Client[]>([])
-  const [products, setProducts] = useState<Product[]>([])
+  const { clients } = useClients(business?.id)
+  const { products } = useProducts(business?.id)
   const [saving, setSaving] = useState(false)
 
   const isExempt = business?.is_vat_exempt ?? false
@@ -54,23 +55,6 @@ export function InvoiceNewPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(business?.default_payment_method ?? 'virement')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<InvoiceItemDraft[]>([emptyItem(isExempt, territoire)])
-
-  useEffect(() => {
-    if (business) {
-      loadClients()
-      loadProducts()
-    }
-  }, [business])
-
-  const loadClients = async () => {
-    const { data } = await supabase.from('clients').select('*').eq('business_id', business!.id).order('company_name')
-    if (data) setClients(data)
-  }
-
-  const loadProducts = async () => {
-    const { data } = await supabase.from('products').select('*').eq('business_id', business!.id).eq('is_active', true).order('name')
-    if (data) setProducts(data)
-  }
 
   const updateItem = (index: number, updates: Partial<InvoiceItemDraft>) => {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...updates } : item)))

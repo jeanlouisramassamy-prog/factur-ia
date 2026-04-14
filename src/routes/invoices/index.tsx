@@ -1,34 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
-import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatDateShort, getClientDisplayName } from '@/lib/utils'
 import { INVOICE_STATUS_INFO } from '@/lib/types'
-import type { Invoice, InvoiceStatus } from '@/lib/types'
+import type { InvoiceStatus } from '@/lib/types'
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { useInvoices } from '@/hooks/useData'
 import { FileText, Plus, Search, Filter } from 'lucide-react'
 
 export function InvoicesListPage() {
   const { business } = useAuthStore()
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [loading, setLoading] = useState(true)
+  const { invoices, loading } = useInvoices(business?.id)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus | 'all'>('all')
-
-  useEffect(() => {
-    if (business) loadInvoices()
-  }, [business])
-
-  const loadInvoices = async () => {
-    if (!business) return
-    const { data } = await supabase
-      .from('invoices')
-      .select('*, client:clients(*)')
-      .eq('business_id', business.id)
-      .order('issue_date', { ascending: false })
-    if (data) setInvoices(data)
-    setLoading(false)
-  }
 
   const filtered = invoices.filter((inv) => {
     if (statusFilter !== 'all' && inv.status !== statusFilter) return false

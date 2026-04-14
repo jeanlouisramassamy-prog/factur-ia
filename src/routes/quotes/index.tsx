@@ -1,33 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
-import { supabase } from '@/lib/supabase'
 import { formatCurrency, formatDateShort, getClientDisplayName } from '@/lib/utils'
 import { QUOTE_STATUS_INFO } from '@/lib/types'
-import type { Quote } from '@/lib/types'
 import { StatusBadge } from '@/components/common/StatusBadge'
+import { useQuotes } from '@/hooks/useData'
 import { FileCheck, Plus, Search } from 'lucide-react'
 
 export function QuotesListPage() {
   const { business } = useAuthStore()
-  const [quotes, setQuotes] = useState<Quote[]>([])
-  const [loading, setLoading] = useState(true)
+  const { quotes, loading } = useQuotes(business?.id)
   const [search, setSearch] = useState('')
-
-  useEffect(() => {
-    if (business) loadQuotes()
-  }, [business])
-
-  const loadQuotes = async () => {
-    if (!business) return
-    const { data } = await supabase
-      .from('quotes')
-      .select('*, client:clients(*)')
-      .eq('business_id', business.id)
-      .order('issue_date', { ascending: false })
-    if (data) setQuotes(data)
-    setLoading(false)
-  }
 
   const filtered = quotes.filter((q) => {
     if (!search) return true

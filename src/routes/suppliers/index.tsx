@@ -1,29 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/common/Toast'
-import type { Supplier } from '@/lib/types'
 import { Truck, Plus, Search, Mail, Phone, X, Building2 } from 'lucide-react'
 import { validateSiret, validateEmail, validateFields, hasErrors } from '@/lib/validators'
 import type { FieldErrors } from '@/lib/validators'
+import { useSuppliers } from '@/hooks/useData'
 
 export function SuppliersPage() {
   const { business } = useAuthStore()
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const { suppliers, loading, refetch } = useSuppliers(business?.id)
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ name: '', siret: '', email: '', phone: '', address_line1: '', postal_code: '', city: '' })
-
-  useEffect(() => { if (business) loadSuppliers() }, [business])
-
-  const loadSuppliers = async () => {
-    if (!business) return
-    const { data } = await supabase.from('suppliers').select('*').eq('business_id', business.id).order('name')
-    if (data) setSuppliers(data)
-    setLoading(false)
-  }
 
   const [errors, setErrors] = useState<FieldErrors>({})
 
@@ -58,7 +48,7 @@ export function SuppliersPage() {
       toast('Fournisseur créé', 'success')
       setShowForm(false)
       setForm({ name: '', siret: '', email: '', phone: '', address_line1: '', postal_code: '', city: '' })
-      loadSuppliers()
+      refetch()
     }
   }
 
